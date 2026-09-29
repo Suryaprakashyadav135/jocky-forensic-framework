@@ -1,0 +1,98 @@
+// log_audit.jky --- Log Analysis Forensics
+
+let findings = 0;
+let high_count = 0;
+let medium_count = 0;
+let low_count = 0;
+
+// 1. Shell history analysis
+let user = getenv("USER");
+let hist_path = "/home/" + user + "/.bash_history";
+if file_exists(hist_path) == 1 {
+    let hist = read_file_lines(hist_path);
+    emit("STAT_history_lines", len(hist));
+    let suspicious = 0;
+    for i in 0..len(hist) {
+        let line = hist[i];
+        if find(line, "curl ") > 0 {
+            emit("FINDING", "LOW|LOG|History_curl|" + substr(line, 0, 80));
+            findings = findings + 1;
+            low_count = low_count + 1;
+            suspicious = suspicious + 1;
+        }
+        if find(line, "wget ") > 0 {
+            emit("FINDING", "LOW|LOG|History_wget|" + substr(line, 0, 80));
+            findings = findings + 1;
+            low_count = low_count + 1;
+            suspicious = suspicious + 1;
+        }
+        if find(line, "chmod +x") > 0 {
+            emit("FINDING", "MEDIUM|LOG|History_chmod_x|" + substr(line, 0, 80));
+            findings = findings + 1;
+            medium_count = medium_count + 1;
+            suspicious = suspicious + 1;
+        }
+        if find(line, "base64") > 0 {
+            emit("FINDING", "MEDIUM|LOG|History_base64|" + substr(line, 0, 80));
+            findings = findings + 1;
+            medium_count = medium_count + 1;
+            suspicious = suspicious + 1;
+        }
+        if find(line, "nc -") > 0 {
+            emit("FINDING", "HIGH|LOG|History_nc|" + substr(line, 0, 80));
+            findings = findings + 1;
+            high_count = high_count + 1;
+            suspicious = suspicious + 1;
+        }
+    }
+    emit("STAT_history_suspicious", suspicious);
+}
+
+// 2. Zsh history
+let zsh_hist = "/home/" + user + "/.zsh_history";
+if file_exists(zsh_hist) == 1 {
+    let zlines = read_file_lines(zsh_hist);
+    emit("STAT_zsh_history_lines", len(zlines));
+}
+
+// 3. Check /var/log for readable files
+let varlog = "/var/log";
+if file_exists(varlog) == 1 {
+    let logs = list_dir(varlog);
+    emit("STAT_var_log_files", len(logs));
+    let readable = 0;
+    for i in 0..len(logs) {
+        let fname = logs[i];
+        let fpath = varlog + "/" + fname;
+        // Try to read
+        let content = read_file(fpath);
+        if len(content) > 0 {
+            readable = readable + 1;
+        }
+    }
+    emit("STAT_readable_logs", readable);
+}
+
+// 4. Check wtmp for login records
+let wtmp = "/var/log/wtmp";
+if file_exists(wtmp) == 1 {
+    let sz = file_size(wtmp);
+    emit("STAT_wtmp_size", sz);
+}
+
+// 5. Check btmp (failed logins)
+let btmp = "/var/log/btmp";
+if file_exists(btmp) == 1 {
+    let bsz = file_size(btmp);
+    emit("STAT_btmp_size", bsz);
+    if bsz > 100 {
+        emit("FINDING", "MEDIUM|LOG|Failed_logins_present|size=" + "100+");
+        findings = findings + 1;
+        medium_count = medium_count + 1;
+    }
+}
+
+emit("STAT_total_findings", findings);
+emit("STAT_high", high_count);
+emit("STAT_medium", medium_count);
+emit("STAT_low", low_count);

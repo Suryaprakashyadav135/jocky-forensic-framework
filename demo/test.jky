@@ -1,0 +1,6 @@
+// JOCKY test script --- V5.2 syntax
+let version = read_file("/proc/version");
+emit("kernel_version", version);
+
+let entries = list_dir("/proc");
+emit("proc_count", len(entries));

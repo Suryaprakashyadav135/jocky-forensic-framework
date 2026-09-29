@@ -1,0 +1,27 @@
+// JOCKY Forensic Script — Persistence Mechanisms Scanner
+// Checks common persistence locations.
+
+let crontab = read_file("/etc/crontab");
+if len(crontab) > 0 {
+    emit("crontab_present", "yes");
+    emit("crontab_bytes", len(crontab));
+}
+
+let profile = read_file("/etc/profile");
+if len(profile) > 0 {
+    emit("profile_bytes", len(profile));
+}
+
+let rc_local = read_file("/etc/rc.local");
+if len(rc_local) > 0 {
+    emit("rc_local_bytes", len(rc_local));
+}
+
+let cron_d = list_dir("/etc/cron.d");
+emit("cron_d_entries", len(cron_d));
+
+let systemd = list_dir("/etc/systemd/system");
+emit("systemd_units", len(systemd));
+
+let ssh_keys = list_dir("/etc/ssh");
+emit("ssh_config_files", len(ssh_keys));

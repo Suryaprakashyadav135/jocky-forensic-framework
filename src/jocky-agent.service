@@ -1,0 +1,16 @@
+[Unit]
+Description=JOCKY Forensic Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/kali/Rudhra/Jocky
+EnvironmentFile=/etc/jocky-agent.env
+ExecStart=/usr/bin/python3 -u /home/kali/Rudhra/Jocky/src/jocky_agent.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

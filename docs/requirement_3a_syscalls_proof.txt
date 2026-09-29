@@ -1,0 +1,35 @@
+REQUIREMENT 3A PROOF — DIRECT SYSCALLS
+
+Command:
+    python3 src/syscall_direct.py
+
+Evidence:
+    [*] RWX stub mapped at: 0x7f5aca286000
+    [*] Stub bytes: 4889f84889f74889d64889ca4d89c24d89c80f05c3
+
+    [syscall] getpid()  = 191735
+    [verify]  os.getpid() = 191735
+      ✓ direct syscall matches libc wrapper
+
+    [syscall] getuid()  = 1000
+    [verify]  os.getuid() = 1000
+      ✓ direct syscall matches libc wrapper
+
+    [syscall] write() via raw syscall -- this message bypassed libc
+      ✓ wrote 64 bytes directly to fd 1
+
+Stub disassembly:
+    48 89 f8          mov    %rdi,%rax      ; syscall number
+    48 89 f7          mov    %rsi,%rdi      ; arg1
+    48 89 d6          mov    %rdx,%rsi      ; arg2
+    48 89 ca          mov    %rcx,%rdx      ; arg3
+    4d 89 c2          mov    %r8,%r10       ; arg4
+    4d 89 c8          mov    %r9,%r8        ; arg5
+    0f 05             syscall
+    c3                ret
+
+Conclusion:
+    Raw Linux syscalls executed from hand-assembled x86-64 machine code
+    in an RWX mmap'd page. libc was never touched. This is the
+    "direct system calls" technique referenced in the SIH problem
+    statement (Section 3A).

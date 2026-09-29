@@ -1,0 +1,40 @@
+// Test Tier 2 primitives
+
+// Map test
+let m = map_new();
+map_set(m, "alice", "admin");
+map_set(m, "bob", "user");
+map_set(m, "charlie", "user");
+
+emit("map_size", map_size(m));
+emit("alice_role", map_get(m, "alice"));
+emit("has_bob", map_has(m, "bob"));
+emit("has_dave", map_has(m, "dave"));
+
+// Iterate map
+for i in 0..map_size(m) {
+    emit(map_key_at(m, i), map_val_at(m, i));
+}
+
+// Regex test
+let r1 = regex_test("hello world", "^hello");
+let r2 = regex_test("hello world", "^world");
+emit("starts_hello", r1);
+emit("starts_world", r2);
+
+// Match (extract)
+let email = match("contact: alice@example.com end", "[a-z]+@[a-z]+\\.[a-z]+");
+emit("extracted_email", email);
+
+// Build string
+let parts = split("a,b,c", ",");
+let joined = build_string(parts, "|");
+emit("joined", joined);
+
+// Sleep (50ms)
+sleep(50);
+emit("slept", "yes");
+
+// File write test
+let w = write_file("/tmp/jocky_test_output.txt", "written by JOCKY\n");
+emit("wrote_bytes", w);

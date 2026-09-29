@@ -1,0 +1,98 @@
+// Real forensic analysis on Kali/Debian
+// Analyzes: shell history, dpkg log, hostname, crontab, passwd
+
+let user = getenv("USER");
+emit("analyst_user", user);
+emit("analyst_uid", getuid());
+
+// ---- Shell history analysis ----
+let hist_path = "/home/" + user + "/.bash_history";
+if file_exists(hist_path) {
+    let hist = read_file_lines(hist_path);
+    let total = len(hist);
+    emit("history_entries", total);
+
+    let suspicious = 0;
+    for i in 0..total {
+        let cmd = hist[i];
+        if find(cmd, "curl") > 0 { suspicious = suspicious + 1; }
+        if find(cmd, "wget") > 0 { suspicious = suspicious + 1; }
+        if find(cmd, "base64") > 0 { suspicious = suspicious + 1; }
+        if find(cmd, "chmod +x") > 0 { suspicious = suspicious + 1; }
+        if find(cmd, "/tmp/") > 0 { suspicious = suspicious + 1; }
+    }
+    emit("suspicious_commands", suspicious);
+}
+
+// ---- Package change log analysis (dpkg.log) ----
+let dpkg_path = "/var/log/dpkg.log";
+if file_exists(dpkg_path) {
+    let dpkg_size = file_size(dpkg_path);
+    emit("dpkg_log_size_bytes", dpkg_size);
+
+    let lines = read_file_lines(dpkg_path);
+    emit("dpkg_entries", len(lines));
+
+    let installs = 0;
+    let removes = 0;
+    for i in 0..len(lines) {
+        let line = lines[i];
+        if find(line, " install ") > 0 { installs = installs + 1; }
+        if find(line, " remove ") > 0 { removes = removes + 1; }
+    }
+    emit("packages_installed", installs);
+    emit("packages_removed", removes);
+}
+
+// ---- Alternatives log ----
+let alt_path = "/var/log/alternatives.log";
+if file_exists(alt_path) {
+    let alt = read_file_lines(alt_path);
+    emit("alternatives_entries", len(alt));
+}
+
+// ---- Hostname ----
+let hn_path = "/etc/hostname";
+if file_exists(hn_path) {
+    let hn = read_file_lines(hn_path);
+    if len(hn) > 0 {
+        emit("hostname", hn[0]);
+    }
+}
+
+// ---- Crontab ----
+let cron_path = "/etc/crontab";
+if file_exists(cron_path) {
+    let cron = read_file_lines(cron_path);
+    emit("crontab_lines", len(cron));
+}
+
+// ---- System users (uid >= 1000) ----
+let passwd = "/etc/passwd";
+let passwd_lines = read_file_lines(passwd);
+emit("passwd_total_lines", len(passwd_lines));
+
+let regular_users = 0;
+let root_user = 0;
+for i in 0..len(passwd_lines) {
+    let line = passwd_lines[i];
+    let parts = split(line, ":");
+    if len(parts) >= 3 {
+        let uid_str = parts[2];
+        let uid = to_int(uid_str);
+        if uid >= 1000 {
+            regular_users = regular_users + 1;
+        }
+        if uid == 0 {
+            root_user = root_user + 1;
+        }
+    }
+}
+emit("regular_users", regular_users);
+emit("uid_zero_accounts", root_user);
+
+if regular_users > 5 {
+    emit("user_risk", "MEDIUM: many regular accounts");
+} else {
+    emit("user_risk", "LOW");
+}

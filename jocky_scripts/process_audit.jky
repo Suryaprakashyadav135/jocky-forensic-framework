@@ -1,0 +1,146 @@
+// =====================================================================
+// process_audit.jky --- Deep Process Forensics for Linux
+// =====================================================================
+// Performs professional-grade process analysis:
+//   1. Detect processes with deleted executables (self-cleaning malware)
+//   2. Detect processes with RWX memory regions (code injection)
+//   3. Detect processes running from /tmp, /dev/shm, /var/tmp
+//   4. Detect LD_PRELOAD environment manipulation
+//   5. Detect processes with deleted open files
+//   6. Detect suspicious command line patterns
+//
+// Findings are emitted as: FINDING|<severity>|<category>|<title>|<evidence>
+// Statistics are emitted as: STAT|<name>|<value>
+// =====================================================================
+
+let proc_entries = list_dir("/proc");
+let total = len(proc_entries);
+
+let scanned = 0;
+let findings = 0;
+let high_count = 0;
+let medium_count = 0;
+let low_count = 0;
+
+for i in 0..total {
+    let pid = proc_entries[i];
+    let base = "/proc/" + pid;
+    let status_path = base + "/status";
+
+    // Only real PIDs have a status file
+    if file_exists(status_path) == 1 {
+        scanned = scanned + 1;
+
+        // ---- Read process name from /proc/PID/status ----
+        let pname = "unknown";
+        let status_lines = read_file_lines(status_path);
+        for j in 0..len(status_lines) {
+            let line = status_lines[j];
+            if starts_with(line, "Name:") == 1 {
+                let name_part = substr(line, 5, len(line) - 5);
+                pname = trim(name_part);
+            }
+        }
+
+        // ---- Read process metadata ----
+        let exe_path = readlink(base + "/exe");
+        let cwd_path = readlink(base + "/cwd");
+
+        // ---- CHECK 1: Deleted executable ----
+        if len(exe_path) > 0 {
+            if find(exe_path, "(deleted)") >= 0 {
+                emit("FINDING", "HIGH|PROCESS|Deleted_exe|pid=" + pid + "|name=" + pname + "|exe=" + exe_path);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+
+            // ---- CHECK 2: Executable in /tmp ----
+            if find(exe_path, "/tmp/") >= 0 {
+                emit("FINDING", "MEDIUM|PROCESS|Exe_in_tmp|pid=" + pid + "|name=" + pname + "|exe=" + exe_path);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+            }
+
+            // ---- CHECK 3: Executable in /dev/shm ----
+            if find(exe_path, "/dev/shm/") >= 0 {
+                emit("FINDING", "HIGH|PROCESS|Exe_in_dev_shm|pid=" + pid + "|name=" + pname + "|exe=" + exe_path);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+
+            // ---- CHECK 4: Executable in /var/tmp ----
+            if find(exe_path, "/var/tmp/") >= 0 {
+                emit("FINDING", "MEDIUM|PROCESS|Exe_in_var_tmp|pid=" + pid + "|name=" + pname + "|exe=" + exe_path);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+            }
+        }
+
+        // ---- CHECK 5: Working directory in /tmp or /dev/shm ----
+        if len(cwd_path) > 0 {
+            if find(cwd_path, "/tmp/") >= 0 {
+                emit("FINDING", "LOW|PROCESS|Cwd_in_tmp|pid=" + pid + "|name=" + pname + "|cwd=" + cwd_path);
+                findings = findings + 1;
+                low_count = low_count + 1;
+            }
+            if find(cwd_path, "/dev/shm/") >= 0 {
+                emit("FINDING", "MEDIUM|PROCESS|Cwd_in_dev_shm|pid=" + pid + "|name=" + pname + "|cwd=" + cwd_path);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+            }
+        }
+
+        // ---- CHECK 6: RWX memory regions (code injection indicator) ----
+        let maps = read_file(base + "/maps");
+        if len(maps) > 0 {
+            if find(maps, "rwxp") >= 0 {
+                emit("FINDING", "HIGH|PROCESS|RWX_memory|pid=" + pid + "|name=" + pname);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+        }
+
+        // ---- CHECK 7: LD_PRELOAD in environment ----
+        let environ = read_file(base + "/environ");
+        if len(environ) > 0 {
+            if find(environ, "LD_PRELOAD=") >= 0 {
+                emit("FINDING", "HIGH|PROCESS|LD_PRELOAD|pid=" + pid + "|name=" + pname);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+            // ---- CHECK 8: Other suspicious env vars ----
+            if find(environ, "LD_LIBRARY_PATH=/tmp") >= 0 {
+                emit("FINDING", "MEDIUM|PROCESS|LD_LIBRARY_PATH_tmp|pid=" + pid + "|name=" + pname);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+            }
+        }
+
+        // ---- CHECK 9: Deleted open files ----
+        let fd_dir = base + "/fd";
+        if file_exists(fd_dir) == 1 {
+            let fds = list_dir(fd_dir);
+            let deleted_count = 0;
+            for k in 0..len(fds) {
+                let fd_target = readlink(fd_dir + "/" + fds[k]);
+                if len(fd_target) > 0 {
+                    if find(fd_target, "(deleted)") >= 0 {
+                        deleted_count = deleted_count + 1;
+                    }
+                }
+            }
+            if deleted_count > 0 {
+                emit("FINDING", "MEDIUM|PROCESS|Open_deleted_files|pid=" + pid + "|name=" + pname);
+                emit("STAT_deleted_fds", deleted_count);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+            }        }
+    }
+}
+
+// ---- Statistics ----
+emit("STAT_total_scanned", scanned);
+emit("STAT_total_findings", findings);
+emit("STAT_high", high_count);
+emit("STAT_medium", medium_count);
+emit("STAT_low", low_count);

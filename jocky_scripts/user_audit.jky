@@ -1,0 +1,215 @@
+// =====================================================================
+// user_audit.jky --- User Account Forensics
+// =====================================================================
+// Professional user account analysis:
+//   1. UID 0 accounts (privilege backdoors)
+//   2. Users with login shells and UID >= 1000
+//   3. Members of admin groups (sudo, wheel, docker, adm, root)
+//   4. Sudoers NOPASSWD entries
+//   5. /etc/passwd anomalies (empty password fields, unusual shells)
+//   6. Home directory existence check
+// =====================================================================
+
+let findings = 0;
+let high_count = 0;
+let medium_count = 0;
+let low_count = 0;
+
+// =====================================================================
+// 1. Parse /etc/passwd
+// =====================================================================
+let passwd_path = "/etc/passwd";
+let passwd_lines = read_file_lines(passwd_path);
+let total_users = len(passwd_lines);
+emit("STAT_total_users", total_users);
+
+let uid0_count = 0;
+let regular_users = 0;
+let service_users = 0;
+
+for i in 0..total_users {
+    let line = passwd_lines[i];
+    let parts = split(line, ":");
+    if len(parts) >= 7 {
+        let uname = parts[0];
+        let uid_str = parts[2];
+        let gid_str = parts[3];
+        let home_dir = parts[5];
+        let shell = parts[6];
+
+        let uid = to_int(uid_str);
+
+        // ---- Check 1: UID 0 accounts other than root ----
+        if uid == 0 {
+            uid0_count = uid0_count + 1;
+            if uname != "root" {
+                emit("FINDING", "HIGH|USER|Non_root_uid0|user=" + uname + "|uid=0|shell=" + shell);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+        }
+
+        // ---- Check 2: Users with valid login shells ----
+        let has_login_shell = 0;
+        if ends_with(shell, "/bash") == 1 { has_login_shell = 1; }
+        if ends_with(shell, "/sh") == 1 { has_login_shell = 1; }
+        if ends_with(shell, "/zsh") == 1 { has_login_shell = 1; }
+
+        if uid >= 1000 {
+            if uid < 65000 {
+                if has_login_shell == 1 {
+                    regular_users = regular_users + 1;
+                }
+            }
+        } else {
+            if uid > 0 {
+                if has_login_shell == 1 {
+                    service_users = service_users + 1;
+                }
+            }
+        }
+
+        // ---- Check 3: Unusual shell (not /bin/... or /usr/bin/...) ----
+        if has_login_shell == 1 {
+            if starts_with(shell, "/bin/") == 0 {
+                if starts_with(shell, "/usr/bin/") == 0 {
+                    if starts_with(shell, "/usr/local/bin/") == 0 {
+                        emit("FINDING", "MEDIUM|USER|Unusual_shell|user=" + uname + "|shell=" + shell);
+                        findings = findings + 1;
+                        medium_count = medium_count + 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+emit("STAT_uid0_accounts", uid0_count);
+emit("STAT_regular_users", regular_users);
+emit("STAT_service_users", service_users);
+
+// =====================================================================
+// 2. Admin group membership
+// =====================================================================
+let group_path = "/etc/group";
+let group_lines = read_file_lines(group_path);
+emit("STAT_group_entries", len(group_lines));
+
+for i in 0..len(group_lines) {
+    let line = group_lines[i];
+    let parts = split(line, ":");
+    if len(parts) >= 4 {
+        let gname = parts[0];
+        let members = parts[3];
+
+        if len(members) > 0 {
+            let is_admin = 0;
+            if gname == "sudo" { is_admin = 1; }
+            if gname == "wheel" { is_admin = 1; }
+            if gname == "adm" { is_admin = 1; }
+            if gname == "docker" { is_admin = 1; }
+            if gname == "lxd" { is_admin = 1; }
+
+            if is_admin == 1 {
+                emit("FINDING", "MEDIUM|USER|Admin_group_member|group=" + gname + "|members=" + members);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+            }
+        }
+    }
+}
+
+// =====================================================================
+// 3. Sudoers analysis
+// =====================================================================
+let sudoers_path = "/etc/sudoers";
+if file_exists(sudoers_path) == 1 {
+    let sudoers = read_file_lines(sudoers_path);
+    for i in 0..len(sudoers) {
+        let line = sudoers[i];
+        if starts_with(line, "#") == 0 {
+            if len(trim(line)) > 0 {
+                if find(line, "NOPASSWD") > 0 {
+                    emit("FINDING", "HIGH|USER|Sudoers_nopasswd|" + line);
+                    findings = findings + 1;
+                    high_count = high_count + 1;
+                }
+                if find(line, "ALL=(ALL)") > 0 {
+                    emit("FINDING", "MEDIUM|USER|Sudoers_all_all|" + line);
+                    findings = findings + 1;
+                    medium_count = medium_count + 1;
+                }
+            }
+        }
+    }
+}
+
+// Check sudoers.d
+let sudoers_d = "/etc/sudoers.d";
+if file_exists(sudoers_d) == 1 {
+    let sd_files = list_dir(sudoers_d);
+    emit("STAT_sudoers_d_files", len(sd_files));
+    for i in 0..len(sd_files) {
+        let fname = sd_files[i];
+        let fpath = sudoers_d + "/" + fname;
+        if file_exists(fpath) == 1 {
+            let content = read_file_lines(fpath);
+            for j in 0..len(content) {
+                let line = content[j];
+                if starts_with(line, "#") == 0 {
+                    if find(line, "NOPASSWD") > 0 {
+                        emit("FINDING", "HIGH|USER|Sudoers_d_nopasswd|" + fname + "|" + line);
+                        findings = findings + 1;
+                        high_count = high_count + 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =====================================================================
+// 4. SSH authorized_keys analysis
+// =====================================================================
+let users_to_check = list_dir("/home");
+for i in 0..len(users_to_check) {
+    let uname = users_to_check[i];
+    let ssh_dir = "/home/" + uname + "/.ssh";
+    if file_exists(ssh_dir) == 1 {
+        let ak = ssh_dir + "/authorized_keys";
+        if file_exists(ak) == 1 {
+            let ak_lines = read_file_lines(ak);
+            let key_count = 0;
+            for j in 0..len(ak_lines) {
+                let line = trim(ak_lines[j]);
+                if len(line) > 0 {
+                    if starts_with(line, "#") == 0 {
+                        key_count = key_count + 1;
+                    }
+                }
+            }
+            if key_count > 0 {
+                emit("FINDING", "MEDIUM|USER|SSH_keys|user=" + uname + "|keys=" + ak_lines[0]);
+                emit("STAT_ssh_keys", key_count);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+            }
+        }
+    }
+}
+
+// Root SSH keys
+let root_ak = "/root/.ssh/authorized_keys";
+if file_exists(root_ak) == 1 {
+    emit("FINDING", "HIGH|USER|Root_ssh_keys|/root/.ssh/authorized_keys exists");
+    findings = findings + 1;
+    high_count = high_count + 1;
+}
+
+// =====================================================================
+// Statistics
+// =====================================================================
+emit("STAT_total_findings", findings);
+emit("STAT_high", high_count);
+emit("STAT_medium", medium_count);
+emit("STAT_low", low_count);

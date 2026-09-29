@@ -1,0 +1,24 @@
+REQUIREMENT 3A PROOF — FILE-LESS EXECUTION
+
+Command:
+    python3 src/memfd_exec.py demo/test.bin
+
+Evidence:
+    [memfd] Loading test.bin (16088 bytes) into RAM
+    [memfd] Original inode on disk: 1218103
+    [memfd] Created anonymous fd: 3
+    [memfd] Wrote 16088 bytes to fd
+    [memfd] fd -> /memfd:jocky_payload (deleted)   <-- KEY PROOF
+    [jocky] cmd_hash=6523cf48968997df  args=1
+    [jocky] cmd_hash=48cb8bb37c57b5af  args=2
+    [memfd] Child exited with code 0
+
+Verification:
+    find / -name "jocky_payload*"  -> empty (no disk file)
+    ls /tmp/*.bin /var/tmp/*.bin   -> empty
+
+Conclusion:
+    The compiled JOCKY binary was executed entirely from RAM via
+    memfd_create + /proc/self/fd execve. No filesystem artifact was
+    created at any point. This is the Linux equivalent of Windows
+    reflective DLL injection / process hollowing.

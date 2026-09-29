@@ -1,0 +1,17 @@
+// JOCKY Forensic Script — Network Connections Scanner
+// Reads /proc/net/tcp and emits active TCP connections.
+
+let tcp = read_file("/proc/net/tcp");
+let tcp6 = read_file("/proc/net/tcp6");
+let udp = read_file("/proc/net/udp");
+
+emit("tcp_table_bytes", len(tcp));
+emit("tcp6_table_bytes", len(tcp6));
+emit("udp_table_bytes", len(udp));
+
+// Read listening configuration
+let routes = read_file("/proc/net/route");
+emit("route_table_bytes", len(routes));
+
+let arp = read_file("/proc/net/arp");
+emit("arp_table_bytes", len(arp));

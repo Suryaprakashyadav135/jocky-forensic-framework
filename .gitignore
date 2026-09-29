@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Build artifacts
+*.o
+*.so
+*.bin
+*.ll
+*.save
+*.save.*
+demos/*.o
+llvm_pass/*.so
+
+# Logs and runtime state
+logs/
+reports/
+
+# Crypto material — NEVER commit
+*.key
+*.pub
+*.state
+*.pcap
+
+# Wrangler cache
+worker/.wrangler/
+worker/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+.env.*
+config/secrets.*

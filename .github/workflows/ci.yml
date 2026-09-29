@@ -1,0 +1,56 @@
+name: JOCKY CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y llvm clang
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install --break-system-packages requests cryptography flask llvmlite psutil
+
+      - name: Compile JOCKY runtime stub
+        run: clang -c llvm/runtime.c -o llvm/runtime.o
+
+      - name: Compile test.jky to binary
+        run: |
+          python3 llvm/codegen.py demo/test.jky
+          llvm-as demo/test.ll -o /dev/null && echo "IR valid"
+          clang -c demo/test.ll -o demo/test.o
+          clang demo/test.o llvm/runtime.o -o demo/test.bin
+
+      - name: Verify no plaintext commands in binary
+        run: |
+          if strings demo/test.bin | grep -iE "collect|scan|forensic"; then
+            echo "FAIL: plaintext command found"; exit 1
+          fi
+          echo "PASS: no plaintext commands in binary"
+
+      - name: Test direct syscalls
+        run: python3 src/syscall_direct.py
+
+      - name: Test full in-memory chain
+        run: python3 src/inmem_chain.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jocky-build-${{ github.sha }}
+          path: |
+            demo/test.bin
+            demo/test.ll

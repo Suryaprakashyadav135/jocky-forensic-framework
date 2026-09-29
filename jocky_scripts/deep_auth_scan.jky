@@ -1,0 +1,81 @@
+// Deep forensic analysis of authentication logs
+// Detects: failed logins, brute-force patterns, sudo usage, suspicious commands
+
+// Try to read auth.log
+let log_path = "/var/log/auth.log";
+let log_exists = file_exists(log_path);
+
+if log_exists {
+    let lines = read_file_lines(log_path);
+    let total = len(lines);
+    emit("auth_log_lines", total);
+
+    let failed_count = 0;
+    let sudo_count = 0;
+    let accepted_count = 0;
+
+    for i in 0..total {
+        let line = lines[i];
+
+        // Detect failed SSH password attempts
+        if find(line, "Failed password") > 0 {
+            failed_count = failed_count + 1;
+        }
+
+        // Detect sudo usage
+        if find(line, "sudo:") > 0 {
+            sudo_count = sudo_count + 1;
+        }
+
+        // Detect successful logins
+        if find(line, "Accepted password") > 0 {
+            accepted_count = accepted_count + 1;
+        }
+    }
+
+    emit("failed_logins", failed_count);
+    emit("sudo_events", sudo_count);
+    emit("accepted_logins", accepted_count);
+
+    // Risk assessment
+    if failed_count > 50 {
+        emit("risk", "HIGH: brute force suspected");
+    } else {
+        if failed_count > 10 {
+            emit("risk", "MEDIUM: elevated failed logins");
+        } else {
+            emit("risk", "LOW");
+        }
+    }
+} else {
+    emit("auth_log", "not readable (permission denied or missing)");
+}
+
+// Also check for the current user's shell history
+let user = getenv("USER");
+let hist_path = "/home/" + user + "/.bash_history";
+
+if file_exists(hist_path) {
+    let hist = read_file_lines(hist_path);
+    emit("history_entries", len(hist));
+
+    let suspicious = 0;
+    for i in 0..len(hist) {
+        let cmd = hist[i];
+
+        // Check for known suspicious patterns
+        if find(cmd, "curl") > 0 {
+            suspicious = suspicious + 1;
+        }
+        if find(cmd, "wget") > 0 {
+            suspicious = suspicious + 1;
+        }
+        if find(cmd, "/tmp/") > 0 {
+            suspicious = suspicious + 1;
+        }
+        if find(cmd, "base64") > 0 {
+            suspicious = suspicious + 1;
+        }
+    }
+    emit("suspicious_history_lines", suspicious);
+}

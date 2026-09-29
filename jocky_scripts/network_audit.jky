@@ -1,0 +1,85 @@
+// network_audit.jky --- Network forensics with direct state matching
+
+let findings = 0;
+let high_count = 0;
+let medium_count = 0;
+let low_count = 0;
+
+let tcp_path = "/proc/net/tcp";
+let tcp_lines = read_file_lines(tcp_path);
+let tcp_total = len(tcp_lines);
+emit("STAT_tcp_entries", tcp_total);
+
+let listen_count = 0;
+let established_count = 0;
+
+// /proc/net/tcp line format:
+//   0: HEXIP:HEXPORT REMHEXIP:REMPORT ST ...
+// The state field ST is "0A" (LISTEN) or "01" (ESTABLISHED) and appears
+// as a standalone token surrounded by spaces.
+for i in 1..tcp_total {
+    let line = tcp_lines[i];
+    if find(line, " 0A ") > 0 {
+        listen_count = listen_count + 1;
+        // Extract port — the local port is between ':' and the next space
+        // We just note that we found a listener
+        emit("FINDING", "LOW|NETWORK|Listener|line=" + substr(line, 0, 60));
+        findings = findings + 1;
+        low_count = low_count + 1;
+    }
+    if find(line, " 01 ") > 0 {
+        established_count = established_count + 1;
+    }
+    // State 02 = SYN_SENT, 06 = TIME_WAIT, 08 = CLOSE_WAIT
+    if find(line, " 08 ") > 0 {
+        emit("FINDING", "LOW|NETWORK|Close_wait|line=" + substr(line, 0, 60));
+        findings = findings + 1;
+        low_count = low_count + 1;
+    }
+}
+
+emit("STAT_listen_sockets", listen_count);
+emit("STAT_established", established_count);
+
+// UDP
+let udp_path = "/proc/net/udp";
+if file_exists(udp_path) == 1 {
+    let udp_lines = read_file_lines(udp_path);
+    emit("STAT_udp_entries", len(udp_lines));
+}
+
+// TCP6
+let tcp6_path = "/proc/net/tcp6";
+if file_exists(tcp6_path) == 1 {
+    let tcp6_lines = read_file_lines(tcp6_path);
+    emit("STAT_tcp6_entries", len(tcp6_lines));
+}
+
+// ARP
+let arp_path = "/proc/net/arp";
+if file_exists(arp_path) == 1 {
+    let arp_lines = read_file_lines(arp_path);
+    emit("STAT_arp_entries", len(arp_lines));
+    for i in 1..len(arp_lines) {
+        let line = arp_lines[i];
+        if find(line, "0x0") > 0 {
+            if find(line, "0x2") == 0 {
+                emit("FINDING", "LOW|NETWORK|Incomplete_arp|" + substr(line, 0, 60));
+                findings = findings + 1;
+                low_count = low_count + 1;
+            }
+        }
+    }
+}
+
+// Routes
+let route_path = "/proc/net/route";
+if file_exists(route_path) == 1 {
+    let route_lines = read_file_lines(route_path);
+    emit("STAT_route_entries", len(route_lines));
+}
+
+emit("STAT_total_findings", findings);
+emit("STAT_high", high_count);
+emit("STAT_medium", medium_count);
+emit("STAT_low", low_count);

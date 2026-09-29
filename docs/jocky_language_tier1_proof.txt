@@ -1,0 +1,88 @@
+JOCKY LANGUAGE --- TIER 1 PRIMITIVES (Native Forensic Depth)
+
+Before Tier 1, JOCKY had 4 primitives (read_file, list_dir, exec_cmd,
+emit) sufficient only for shallow enumeration.
+
+After Tier 1, JOCKY has 26 primitives across file, string, array, and
+system categories. This enables real forensic analysis in native
+JOCKY syntax --- no Python handlers required for the logic.
+
+PRIMITIVES ADDED (22):
+
+File access (6):
+  file_exists(path) -> int
+  file_size(path) -> int
+  file_mtime(path) -> int
+  read_file_lines(path) -> array
+  read_bytes(path, offset, count) -> string
+  readlink(path) -> string
+
+String operations (10):
+  substr(s, start, len) -> string
+  split(s, delimiter) -> array
+  find(s, needle) -> int
+  trim(s) -> string
+  lower(s) -> string
+  upper(s) -> string
+  to_int(s) -> int
+  replace(s, old, new) -> string
+  starts_with(s, prefix) -> int
+  ends_with(s, suffix) -> int
+
+Array operations (2):
+  append(arr, value) -> array
+  contains(arr, value) -> int
+
+System (4):
+  getenv(name) -> string
+  getpid() -> int
+  getuid() -> int
+  getcwd() -> string
+
+DEMONSTRATION (real_forensic_scan.jky):
+
+Real forensic analysis of a live Kali system:
+
+  - Read /var/log/dpkg.log (1.8 MB, 26,101 lines)
+  - Counted 3,521 package installations by pattern matching
+  - Enumerated 58 users from /etc/passwd
+  - Split each line by ':', extracted UID field, converted to int
+  - Filtered for UID >= 1000 (regular users)
+  - Filtered for UID == 0 (root-level accounts)
+  - Analyzed crontab, alternatives log, shell history
+  - Computed a risk score based on findings
+
+Output (native JOCKY):
+  EMIT packages_installed = 3521
+  EMIT regular_users = 2
+  EMIT uid_zero_accounts = 1
+  EMIT crontab_lines = 22
+  EMIT user_risk = LOW
+
+Signature check:
+  strings /tmp/real_forensic_scan_final.bin | grep -iE \
+    "auth|dpkg|hostname|crontab|bash_history|passwd|curl|wget"
+  -> (no forensic strings in binary)
+
+All 22 primitives verified with unit tests against real files.
+
+CONCLUSION:
+
+JOCKY now performs real forensic analysis in its own language. The
+compiled binary contains zero plaintext intent. It executes file-less
+via memfd. It delivers findings through XOR-encoded strings that only
+exist in RAM.
+
+This closes the language gap between "shallow triage" and "real
+forensics" while preserving all obfuscation layers.
+
+Coverage update:
+  Before Tier 1: ~20% of forensic language features
+  After Tier 1:  ~65% of forensic language features
+
+Remaining gaps (Tier 2 / Tier 3):
+  - Map/dictionary data structures
+  - Error handling (try/catch)
+  - While loops, break/continue
+  - JSON/structured output
+  - Regex pattern matching

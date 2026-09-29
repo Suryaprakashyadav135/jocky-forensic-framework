@@ -1,0 +1,29 @@
+// JOCKY Forensic Script — System Fingerprinting
+// Fast triage of a system's identity and state.
+
+let hostname = read_file("/proc/sys/kernel/hostname");
+emit("hostname", hostname);
+
+let version = read_file("/proc/version");
+emit("kernel", version);
+
+let uptime = read_file("/proc/uptime");
+emit("uptime_seconds", uptime);
+
+let loadavg = read_file("/proc/loadavg");
+emit("loadavg", loadavg);
+
+let meminfo = read_file("/proc/meminfo");
+emit("meminfo_bytes", len(meminfo));
+
+let cpuinfo = read_file("/proc/cpuinfo");
+emit("cpuinfo_bytes", len(cpuinfo));
+
+let mounts = read_file("/proc/mounts");
+emit("mount_lines", len(mounts));
+
+let user = exec_cmd("whoami");
+emit("current_user", user);
+
+let id_out = exec_cmd("id");
+emit("current_id", id_out);

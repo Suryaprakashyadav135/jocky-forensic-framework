@@ -1,0 +1,15 @@
+9.0
+Release: 2026-09-30
+Status: Complete framework — all 6 PPT slides ready
+Components:
+- JOCKY DSL — custom lexer, parser, type system
+- LLVM 21 compiler with CFG flattening
+- 7-layer polymorphic obfuscation engine
+- File-less execution (Linux memfd · Windows designed)
+- Multi-vector in-memory execution + BYOVD pipeline
+- ECDH P-256 · HKDF-SHA256 · AES-256-GCM · Ed25519
+- Cloudflare Worker + Tunnel C2 (permanent deployment)
+- Central management: dashboard + dispatch CLI + correlation engine
+- Offline fallback: worker error page + dashboard empty state
+- 8 native forensic modules (extensible)
+Slides: 6 PPT slides complete + abstract pending

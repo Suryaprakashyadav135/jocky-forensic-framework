@@ -1,0 +1,54 @@
+// Test all remaining Tier 1 primitives
+
+// File mtime
+let mtime = file_mtime("/etc/passwd");
+emit("passwd_mtime", mtime);
+
+// read_file_lines
+let lines = read_file_lines("/etc/hostname");
+emit("hostname_lines", len(lines));
+
+// readlink
+let target = readlink("/bin/ls");
+emit("ls_target", target);
+
+// substr
+let s = substr("hello world", 0, 5);
+emit("substr_hello", s);
+
+// find
+let idx = find("hello world", "world");
+emit("find_world", idx);
+
+// trim
+let t = trim("   spaced   ");
+emit("trimmed_len", len(t));
+
+// lower, upper
+let lower_s = lower("ABC");
+let upper_s = upper("abc");
+emit("lower", lower_s);
+emit("upper", upper_s);
+
+// to_int
+let n = to_int("12345");
+emit("to_int_result", n);
+
+// replace
+let r = replace("hello world", "world", "earth");
+emit("replaced", r);
+
+// starts_with, ends_with
+let sw = starts_with("hello", "he");
+let ew = ends_with("hello", "lo");
+emit("starts_he", sw);
+emit("ends_lo", ew);
+
+// append + contains
+let arr = split("a,b,c", ",");
+let arr2 = append(arr, "d");
+let has_d = contains(arr2, "d");
+let has_x = contains(arr2, "x");
+emit("after_append_len", len(arr2));
+emit("has_d", has_d);
+emit("has_x", has_x);

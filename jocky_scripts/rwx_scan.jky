@@ -1,0 +1,10 @@
+let pids = list_dir("/proc");
+let found = 0;
+for i in 0..len(pids) {
+    let pid = pids[i];
+    let maps = read_file("/proc/" + pid + "/maps");
+    if len(maps) > 0 {
+        emit("proc", pid);
+    }
+}
+emit("scanned", len(pids));

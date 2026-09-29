@@ -1,0 +1,64 @@
+REQUIREMENT PROOF --- Real AV Bypass Demonstration
+
+Tool: ClamAV 1.4.6 / 28136 / Sun Sep 27 11:56:12 2026
+Rule: Custom YARA rule "Forensic_Tool_Detection"
+Signatures: /proc/, rwx, /proc/net/tcp, /etc/crontab, authorized_keys,
+            for pid in /proc, grep.*rwx
+
+Test Setup:
+  - normal_forensic.sh   --- plain shell script that scans /proc/*/maps,
+                             /proc/net/tcp, /etc/crontab, authorized_keys
+  - jocky_forensic.bin   --- same forensic task compiled through JOCKY:
+                             * control-flow flattening
+                             * function name randomization
+                             * runtime symbol randomization
+                             * binary stripping
+                             * ELF entry point mutation
+                             * import table augmentation
+                             * XOR-encoded strings
+
+Test 1 --- Scan normal_forensic.sh:
+  /tmp/av_real_test/normal_forensic.sh:
+    YARA.Forensic_Tool_Detection.UNOFFICIAL FOUND
+  Scan summary:
+    Known viruses: 1
+    Engine version: 1.4.6
+    Scanned files: 1
+    Infected files: 1
+
+Test 2 --- Scan jocky_forensic.bin:
+  /tmp/av_real_test/jocky_forensic.bin: OK
+  Scan summary:
+    Known viruses: 1
+    Engine version: 1.4.6
+    Scanned files: 1
+    Infected files: 0
+
+Test 3 --- File-less execution:
+  $ python3 src/memfd_exec.py /tmp/av_real_test/jocky_forensic.bin
+  EMIT proc = self
+  EMIT proc = thread-self
+  EMIT proc = 1291
+  ...
+  No payload file appears on disk during execution.
+  $ find / -name "jocky_payload*" -> empty
+
+Interpretation:
+  The AV engine's YARA rule matched the plaintext forensic intent in
+  the shell script. The same intent, compiled through JOCKY's 7-layer
+  obfuscation stack, contains no pattern the rule can match.
+
+  The JOCKY binary also runs file-less via memfd_create, so no artifact
+  is dropped for the AV to scan. The forensic output is identical.
+
+  This is the SIH problem statement's primary objective:
+  forensic tools that produce real results WITHOUT triggering
+  signature-based detection.
+
+Caveat (honest scope):
+  This defeats FILE-BASED SIGNATURE AV. Behavioral EDR (Falco,
+  CrowdStrike, etc.) watches kernel syscalls and would still observe
+  the process's read()/open() operations regardless of file format.
+  Defeating behavioral EDR on Linux requires an LKM or eBPF rootkit
+  --- out of scope for this userspace framework. This boundary is
+  documented in docs/requirement_3a_process_injection_proof.txt.

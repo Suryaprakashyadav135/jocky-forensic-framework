@@ -1,0 +1,27 @@
+// Test regex matching with proper escaping
+
+// Simple literal match
+let r1 = match("hello world", "world");
+emit("literal_world", r1);
+
+// Email pattern --- use a single backslash for the dot
+let email = match("contact: alice@example.com end", "[a-z]+@[a-z]+[.][a-z]+");
+emit("email_alt", email);
+
+// Even simpler --- match just alphanumeric
+let simple = match("user123@host.com", "[a-z0-9]+");
+emit("simple_match", simple);
+
+// Regex test cases
+let t1 = regex_test("password=secret", "password");
+let t2 = regex_test("password=secret", "username");
+emit("has_password", t1);
+emit("has_username", t2);
+
+// IPv4 pattern
+let ip = match("connecting from 192.168.1.100 port 22", "[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+");
+emit("ip_extracted", ip);
+
+// Path pattern
+let path = match("file at /var/log/syslog here", "/[a-z/]+");
+emit("path_extracted", path);

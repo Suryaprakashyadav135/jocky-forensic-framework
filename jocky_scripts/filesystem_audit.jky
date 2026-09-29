@@ -1,0 +1,94 @@
+// filesystem_audit.jky --- Filesystem Forensics (noise-reduced)
+
+let findings = 0;
+let high_count = 0;
+let medium_count = 0;
+let low_count = 0;
+
+// 1. /dev/shm (all files are suspicious — it's a ramdisk)
+let shm_dir = "/dev/shm";
+if file_exists(shm_dir) == 1 {
+    let shm_entries = list_dir(shm_dir);
+    emit("STAT_shm_entries", len(shm_entries));
+    for i in 0..len(shm_entries) {
+        let fname = shm_entries[i];
+        emit("FINDING", "HIGH|FILESYSTEM|Dev_shm_file|" + fname);
+        findings = findings + 1;
+        high_count = high_count + 1;
+    }
+}
+
+// 2. /tmp executables (only flag files without extensions, likely payloads)
+let tmp_dir = "/tmp";
+let tmp_entries = list_dir(tmp_dir);
+emit("STAT_tmp_entries", len(tmp_entries));
+let tmp_suspicious = 0;
+for i in 0..len(tmp_entries) {
+    let fname = tmp_entries[i];
+    // Only flag files with no extension OR known script extensions
+    let has_ext = 0;
+    if find(fname, ".") > 0 { has_ext = 1; }
+    if has_ext == 0 {
+        let fpath = tmp_dir + "/" + fname;
+        let sub = list_dir(fpath);
+        if len(sub) == 0 {
+            let sz = file_size(fpath);
+            if sz > 1000 {
+                emit("FINDING", "MEDIUM|FILESYSTEM|Extensionless_tmp|" + fname);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+                tmp_suspicious = tmp_suspicious + 1;
+            }
+        }
+    }
+    // Flag .sh files in /tmp (scripts are common drop patterns)
+    if ends_with(fname, ".sh") == 1 {
+        emit("FINDING", "MEDIUM|FILESYSTEM|Tmp_shell_script|" + fname);
+        findings = findings + 1;
+        medium_count = medium_count + 1;
+        tmp_suspicious = tmp_suspicious + 1;
+    }
+}
+emit("STAT_tmp_suspicious", tmp_suspicious);
+
+// 3. Hidden files in unusual locations (not in home)
+let home_dir = "/home/" + getenv("USER");
+emit("STAT_home", home_dir);
+
+// 4. /etc/sudoers.d — flag recently modified
+let sudoers_d = "/etc/sudoers.d";
+if file_exists(sudoers_d) == 1 {
+    let sd_entries = list_dir(sudoers_d);
+    emit("STAT_sudoers_d_entries", len(sd_entries));
+    for i in 0..len(sd_entries) {
+        let fname = sd_entries[i];
+        let mtime = file_mtime(sudoers_d + "/" + fname);
+        // Only flag if modified in last ~7 days (assuming current time ~ Sep 2026)
+        // Unix timestamps for Sep 2026 = ~1789000000
+        if mtime > 1788000000 {
+            emit("FINDING", "LOW|FILESYSTEM|Recent_sudoers_change|" + fname);
+            findings = findings + 1;
+            low_count = low_count + 1;
+        }
+    }
+}
+
+// 5. SSH directories in home folders
+let home_users = list_dir("/home");
+let ssh_dir_count = 0;
+for i in 0..len(home_users) {
+    let uname = home_users[i];
+    let ak_path = "/home/" + uname + "/.ssh/authorized_keys";
+    if file_exists(ak_path) == 1 {
+        ssh_dir_count = ssh_dir_count + 1;
+        emit("FINDING", "MEDIUM|FILESYSTEM|Authorized_keys_file|user=" + uname);
+        findings = findings + 1;
+        medium_count = medium_count + 1;
+    }
+}
+emit("STAT_ssh_key_files", ssh_dir_count);
+
+emit("STAT_total_findings", findings);
+emit("STAT_high", high_count);
+emit("STAT_medium", medium_count);
+emit("STAT_low", low_count);

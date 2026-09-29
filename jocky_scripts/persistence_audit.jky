@@ -1,0 +1,307 @@
+// =====================================================================
+// persistence_audit.jky --- Persistence Mechanism Detection
+// =====================================================================
+// Scans common persistence locations and flags suspicious entries:
+//   1. /etc/crontab and /etc/cron.d/* (system crons)
+//   2. /var/spool/cron/crontabs/* (user crons)
+//   3. /etc/systemd/system/*.service (user-installed services)
+//   4. Shell profiles (~/.bashrc, ~/.profile, ~/.zshrc)
+//   5. /etc/rc.local (legacy boot execution)
+//   6. /etc/ssh/sshd_config (SSH persistence)
+//   7. /etc/profile.d/*
+//
+// Suspicious patterns: curl, wget, base64, |sh, |bash, nc, /tmp/, /dev/shm/
+// =====================================================================
+
+let findings = 0;
+let high_count = 0;
+let medium_count = 0;
+let low_count = 0;
+
+// =====================================================================
+// 1. System crontab
+// =====================================================================
+let crontab = "/etc/crontab";
+if file_exists(crontab) == 1 {
+    let lines = read_file_lines(crontab);
+    emit("STAT_crontab_lines", len(lines));
+    for i in 0..len(lines) {
+        let line = lines[i];
+        if starts_with(line, "#") == 0 {
+            if len(trim(line)) > 0 {
+                let suspicious = 0;
+                if find(line, "curl") > 0 { suspicious = 1; }
+                if find(line, "wget") > 0 { suspicious = 1; }
+                if find(line, "base64") > 0 { suspicious = 1; }
+                if find(line, "|sh") > 0 { suspicious = 1; }
+                if find(line, "| sh") > 0 { suspicious = 1; }
+                if find(line, "|bash") > 0 { suspicious = 1; }
+                if find(line, "| bash") > 0 { suspicious = 1; }
+                if find(line, "/tmp/") > 0 { suspicious = 1; }
+                if find(line, "/dev/shm/") > 0 { suspicious = 1; }
+                if suspicious == 1 {
+                    emit("FINDING", "HIGH|PERSISTENCE|Crontab_suspicious|" + line);
+                    findings = findings + 1;
+                    high_count = high_count + 1;
+                }
+            }
+        }
+    }
+}
+
+// =====================================================================
+// 2. /etc/cron.d/* files
+// =====================================================================
+let cron_d_entries = list_dir("/etc/cron.d");
+emit("STAT_cron_d_files", len(cron_d_entries));
+for i in 0..len(cron_d_entries) {
+    let fname = cron_d_entries[i];
+    let fpath = "/etc/cron.d/" + fname;
+    if file_exists(fpath) == 1 {
+        let lines = read_file_lines(fpath);
+        for j in 0..len(lines) {
+            let line = lines[j];
+            if starts_with(line, "#") == 0 {
+                if find(line, "curl") > 0 {
+                    emit("FINDING", "HIGH|PERSISTENCE|Cron_d_curl|" + fname + "|" + line);
+                    findings = findings + 1;
+                    high_count = high_count + 1;
+                }
+                if find(line, "wget") > 0 {
+                    emit("FINDING", "HIGH|PERSISTENCE|Cron_d_wget|" + fname + "|" + line);
+                    findings = findings + 1;
+                    high_count = high_count + 1;
+                }
+                if find(line, "base64") > 0 {
+                    emit("FINDING", "HIGH|PERSISTENCE|Cron_d_base64|" + fname + "|" + line);
+                    findings = findings + 1;
+                    high_count = high_count + 1;
+                }
+                if find(line, "/tmp/") > 0 {
+                    emit("FINDING", "MEDIUM|PERSISTENCE|Cron_d_tmp|" + fname + "|" + line);
+                    findings = findings + 1;
+                    medium_count = medium_count + 1;
+                }
+            }
+        }
+    }
+}
+
+// =====================================================================
+// 3. User crontabs (/var/spool/cron/crontabs/*)
+// =====================================================================
+let user_cron_dir = "/var/spool/cron/crontabs";
+if file_exists(user_cron_dir) == 1 {
+    let user_crons = list_dir(user_cron_dir);
+    emit("STAT_user_crontabs", len(user_crons));
+    for i in 0..len(user_crons) {
+        let user = user_crons[i];
+        let fpath = user_cron_dir + "/" + user;
+        if file_exists(fpath) == 1 {
+            let lines = read_file_lines(fpath);
+            for j in 0..len(lines) {
+                let line = lines[j];
+                if find(line, "curl") > 0 {
+                    emit("FINDING", "HIGH|PERSISTENCE|User_cron_curl|user=" + user + "|" + line);
+                    findings = findings + 1;
+                    high_count = high_count + 1;
+                }
+                if find(line, "wget") > 0 {
+                    emit("FINDING", "HIGH|PERSISTENCE|User_cron_wget|user=" + user + "|" + line);
+                    findings = findings + 1;
+                    high_count = high_count + 1;
+                }
+            }
+        }
+    }
+}
+
+// =====================================================================
+// 4. Systemd units in /etc/systemd/system/
+// =====================================================================
+let systemd_dir = "/etc/systemd/system";
+if file_exists(systemd_dir) == 1 {
+    let units = list_dir(systemd_dir);
+    let service_count = 0;
+    for i in 0..len(units) {
+        let name = units[i];
+        if ends_with(name, ".service") == 1 {
+            service_count = service_count + 1;
+            let fpath = systemd_dir + "/" + name;
+            if file_exists(fpath) == 1 {
+                let content = read_file(fpath);
+                if find(content, "ExecStart=") > 0 {
+                    // Check for suspicious ExecStart
+                    if find(content, "curl") > 0 {
+                        emit("FINDING", "HIGH|PERSISTENCE|Systemd_curl|" + name);
+                        findings = findings + 1;
+                        high_count = high_count + 1;
+                    }
+                    if find(content, "wget") > 0 {
+                        emit("FINDING", "HIGH|PERSISTENCE|Systemd_wget|" + name);
+                        findings = findings + 1;
+                        high_count = high_count + 1;
+                    }
+                    if find(content, "/tmp/") > 0 {
+                        emit("FINDING", "HIGH|PERSISTENCE|Systemd_tmp|" + name);
+                        findings = findings + 1;
+                        high_count = high_count + 1;
+                    }
+                    if find(content, "/dev/shm/") > 0 {
+                        emit("FINDING", "HIGH|PERSISTENCE|Systemd_dev_shm|" + name);
+                        findings = findings + 1;
+                        high_count = high_count + 1;
+                    }
+                }
+            }
+        }
+    }
+    emit("STAT_systemd_services", service_count);
+}
+
+// =====================================================================
+// 5. Shell profiles
+// =====================================================================
+let user = getenv("USER");
+let home_dir = "/home/" + user;
+
+let profiles = list_dir("/etc/skel");
+emit("STAT_skel_files", len(profiles));
+
+// Check user's own shell profiles
+let bashrc = home_dir + "/.bashrc";
+if file_exists(bashrc) == 1 {
+    let lines = read_file_lines(bashrc);
+    for i in 0..len(lines) {
+        let line = lines[i];
+        if starts_with(line, "#") == 0 {
+            if find(line, "curl") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Bashrc_curl|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+            if find(line, "wget") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Bashrc_wget|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+            if find(line, "nc -") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Bashrc_nc|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+            if find(line, "base64") > 0 {
+                emit("FINDING", "MEDIUM|PERSISTENCE|Bashrc_base64|" + line);
+                findings = findings + 1;
+                medium_count = medium_count + 1;
+            }
+            if find(line, "LD_PRELOAD") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Bashrc_ld_preload|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+        }
+    }
+}
+
+// Profile check
+let profile = home_dir + "/.profile";
+if file_exists(profile) == 1 {
+    let lines = read_file_lines(profile);
+    for i in 0..len(lines) {
+        let line = lines[i];
+        if starts_with(line, "#") == 0 {
+            if find(line, "curl") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Profile_curl|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+            if find(line, "wget") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Profile_wget|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+        }
+    }
+}
+
+// Zshrc check
+let zshrc = home_dir + "/.zshrc";
+if file_exists(zshrc) == 1 {
+    let lines = read_file_lines(zshrc);
+    for i in 0..len(lines) {
+        let line = lines[i];
+        if starts_with(line, "#") == 0 {
+            if find(line, "curl") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Zshrc_curl|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+            if find(line, "wget") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Zshrc_wget|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+        }
+    }
+}
+
+// =====================================================================
+// 6. /etc/rc.local
+// =====================================================================
+let rc_local = "/etc/rc.local";
+if file_exists(rc_local) == 1 {
+    emit("FINDING", "MEDIUM|PERSISTENCE|Rc_local_exists|/etc/rc.local present");
+    findings = findings + 1;
+    medium_count = medium_count + 1;
+    let lines = read_file_lines(rc_local);
+    for i in 0..len(lines) {
+        let line = lines[i];
+        if starts_with(line, "#") == 0 {
+            if find(line, "curl") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Rc_local_curl|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+            if find(line, "wget") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Rc_local_wget|" + line);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+        }
+    }
+}
+
+// =====================================================================
+// 7. /etc/profile.d/*
+// =====================================================================
+let profile_d = "/etc/profile.d";
+if file_exists(profile_d) == 1 {
+    let pd_files = list_dir(profile_d);
+    emit("STAT_profile_d_files", len(pd_files));
+    for i in 0..len(pd_files) {
+        let fname = pd_files[i];
+        let fpath = profile_d + "/" + fname;
+        if file_exists(fpath) == 1 {
+            let content = read_file(fpath);
+            if find(content, "curl") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Profile_d_curl|" + fname);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+            if find(content, "wget") > 0 {
+                emit("FINDING", "HIGH|PERSISTENCE|Profile_d_wget|" + fname);
+                findings = findings + 1;
+                high_count = high_count + 1;
+            }
+        }
+    }
+}
+
+// =====================================================================
+// Statistics
+// =====================================================================
+emit("STAT_total_findings", findings);
+emit("STAT_high", high_count);
+emit("STAT_medium", medium_count);
+emit("STAT_low", low_count);

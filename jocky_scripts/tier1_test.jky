@@ -1,0 +1,21 @@
+// Test Tier 1 primitives
+let exists = file_exists("/etc/passwd");
+emit("etc_passwd_exists", exists);
+
+let size = file_size("/proc/version");
+emit("version_size", size);
+
+let cwd = getcwd();
+emit("cwd", cwd);
+
+let pid = getpid();
+emit("pid", pid);
+
+let uid = getuid();
+emit("uid", uid);
+
+let user = getenv("USER");
+emit("user_env", user);
+
+let parts = split("/proc/1/cmdline", "/");
+emit("path_parts", len(parts));

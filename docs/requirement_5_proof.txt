@@ -1,0 +1,35 @@
+REQUIREMENT 5 PROOF — REAL CDN VIA CLOUDFLARE WORKERS + TUNNEL
+
+Architecture:
+    JOCKY Client → Cloudflare Worker → Cloudflare Tunnel → Local Flask C2
+
+Deployed components:
+    Worker URL:  https://jocky-cdn-front.g-surya-prakash.workers.dev
+    Tunnel URL:  https://builders-cloth-meaning-agencies.trycloudflare.com
+    cloudflared: 2026.9.3
+    Worker version: cc42c70f-b10e-4318-b498-b5f89f4bd4f5
+
+Pattern implemented:
+    "Legitimate cloud APIs" — the alternative the SIH problem
+    statement explicitly allows alongside classic domain fronting.
+    SNI and Host match (both *.workers.dev), so Cloudflare does not
+    block the request. The real C2 is concealed behind the Worker.
+
+Verified E2E (client through Cloudflare):
+    [+] Handshake complete — session zfPRbPZtqk09
+        Shared secret sha256: 3792d3eb1f37de5e
+    [b725b5ca] collect_system_info           → complete
+    [70cab4c3] list_processes                → complete (309 processes)
+    [83c6ba61] enumerate_network_connections → complete (23 connections)
+    [ca2dd8d9] scan_forensic_artifacts       → complete
+    [f31b6100] check_persistence             → complete (6/8 paths)
+
+DNS + TLS:
+    Cloudflare anycast: 104.21.41.248, 172.67.167.212
+    Certificate: CN=g-surya-prakash.workers.dev
+    Protocol: TLSv1.3
+    Cipher: TLS_AES_256_GCM_SHA384
+
+Note on IPv6:
+    Kali VM has no working IPv6 route to Cloudflare. Client forces
+    IPv4 via urllib3.util.connection.HAS_IPV6 = False.

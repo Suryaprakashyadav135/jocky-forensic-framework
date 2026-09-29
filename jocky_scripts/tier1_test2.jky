@@ -1,0 +1,9 @@
+// Test file_size on a real file
+let passwd_size = file_size("/etc/passwd");
+emit("etc_passwd_size", passwd_size);
+
+let hostname_size = file_size("/etc/hostname");
+emit("hostname_size", hostname_size);
+
+let bin_size = file_size("/bin/ls");
+emit("bin_ls_size", bin_size);

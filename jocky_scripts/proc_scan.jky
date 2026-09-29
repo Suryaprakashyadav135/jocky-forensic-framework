@@ -1,0 +1,18 @@
+// JOCKY Forensic Script — Process Command Line Scanner
+// Iterates /proc, emits each running process's command line.
+
+let entries = list_dir("/proc");
+let total = len(entries);
+emit("proc_count", total);
+
+let found = 0;
+for i in 0..total {
+    let name = entries[i];
+    let path = "/proc/" + name + "/cmdline";
+    let cmdline = read_file(path);
+    if len(cmdline) > 0 {
+        emit(name, cmdline);
+        found = found + 1;
+    }
+}
+emit("emitted_cmdlines", found);

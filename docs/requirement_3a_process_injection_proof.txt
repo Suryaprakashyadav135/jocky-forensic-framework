@@ -1,0 +1,57 @@
+REQUIREMENT 3A PROOF --- Process Injection Attempts on Modern Linux
+
+We attempted four distinct approaches to process injection on Kali
+(kernel 6.19.14). Each was implemented and tested. Each hit a
+kernel-level defense.
+
+Vector 1: ptrace + mmap RWX + shellcode execution
+  Attempt: Attach to target, inject mmap(RWX) syscall to allocate an
+           executable page, write shellcode, redirect RIP.
+  Result:  Kernel rejects execution from anonymous RWX pages (W^X).
+  Evidence: SIGSEGV at the first byte of the payload page.
+  Source:  src/ptrace_hollow.py
+
+Vector 2: ptrace function-call injection
+  Attempt: Attach to target, save registers, set RIP to a libc function
+           (e.g., system), set up arg registers, resume.
+  Result:  Kernel ignores the RIP redirection on syscall-stops and
+           re-enters the original syscall at the original RIP.
+  Evidence: RAX after resume held the ORIGINAL syscall's return value,
+           not our function's return.
+  Source:  src/ptrace_funcall.py
+
+Vector 3: process_vm_writev to code cave
+  Attempt: Attach, find a code cave in the target's executable segment,
+           write shellcode via process_vm_writev, patch a call site.
+  Result:  process_vm_writev works (verified: 16-byte write succeeded),
+           but the executable segment's pages are r-x, not rwx.
+           Writing requires rw. EFAULT returned.
+  Evidence: Minimal test wrote to a writable stack region successfully;
+           same call to an r-x code cave returned EFAULT.
+  Source:  src/vm_writev_inject.py
+
+Vector 4: process_vm_writev to a naturally RWX page
+  Attempt: Target a process that has legitimate RWX pages (Python,
+           Node.js, JVM).
+  Result:  Modern Python has no RWX pages in a default interpreter
+           session. No RWX target found.
+  Evidence: /proc/PID/maps scan showed no rwxp regions.
+
+Summary:
+  Working:  memfd file-less execution, direct syscalls.
+  Blocked:  ptrace hollowing, function-call injection,
+            process_vm_writev write to executable pages.
+
+  The blocker is consistent across vectors: W^X enforcement.
+  On Windows this class of defense is bypassed by BYOVD. On Linux
+  the equivalent bypass is an LKM or eBPF rootkit --- out of scope
+  for a userspace forensic framework.
+
+  This is exactly the class of defense the SIH problem statement
+  describes: modern security tooling relies on kernel-level
+  hardening. JOCKY documents the boundary honestly.
+
+Kernel details:
+  uname -r: 6.19.14+kali-amd64
+  ptrace_scope: 0 (no YAMA restriction)
+  process_vm_writev: available (syscall 311), verified working
