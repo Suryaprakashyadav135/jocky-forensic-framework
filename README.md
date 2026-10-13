@@ -200,35 +200,7 @@ python3 src/inmem_chain.py
 
 ---
 ## Repository Structure
-
-Repository Structure
-Path	Purpose
-.github/workflows/	CI/CD pipeline
-demo/	Sample programs and compiled artifacts
-docs/	Architecture and requirement proof documents
-llvm/	JOCKY language frontend (lexer, parser, codegen, obfuscation)
-jocky_scripts/	Forensic scripts in JOCKY language
-src/	Core framework
-src/c2_channel.py	Client - encodes and sends
-src/mock_cdn_server.py	Server - receives, decodes, executes
-src/crypto.py	ECDH + HKDF + AES-256-GCM
-src/protocol.py	Structured command schema
-src/dashboard.py	Flask web dashboard
-src/memfd_exec.py	File-less execution
-src/syscall_direct.py	Direct syscalls
-src/inmem_chain.py	End-to-end in-memory chain
-src/elf_mutate.py	ELF entry point mutation
-src/dynsym_inject.py	Import table augmentation
-src/forensic_real.py	Real forensic logic
-src/jocky_agent.py	Persistent agent
-src/dispatch.py	Dispatch server API
-src/dispatch_cli.py	Analyst CLI
-worker/	Cloudflare Worker for domain fronting
-logs/	Runtime logs and captures
-requirements.txt	Python dependencies
-build_jocky.sh	Build pipeline
-JOCKY_MASTER_NOTES_V5.md	Detailed state document
-README.md	This file
+<pre> jocky-forensic-framework/ ├── .github/ │ └── workflows/ # CI/CD pipeline ├── demo/ # Sample programs (test.jky, test.ll, test.bin) ├── docs/ # Architecture and requirement proof ├── llvm/ # JOCKY language frontend │ ├── lexer.py │ ├── parser.py │ ├── codegen.py │ ├── codegen_v2.py │ ├── obfuscate_v2.py │ └── runtime.c ├── jocky_scripts/ # Forensic scripts (.jky) │ ├── recon.jky │ └── sys_fingerprint.jky ├── src/ # Core framework │ ├── c2_channel.py # Client - encodes + sends │ ├── mock_cdn_server.py # Server - receives + decodes + executes │ ├── crypto.py # ECDH + HKDF + AES-256-GCM │ ├── protocol.py # Structured command schema │ ├── dashboard.py # Flask web dashboard │ ├── memfd_exec.py # File-less execution │ ├── syscall_direct.py # Direct syscalls │ ├── inmem_chain.py # End-to-end in-memory chain │ ├── elf_mutate.py # ELF entry point mutation │ ├── dynsym_inject.py # Import table augmentation │ ├── forensic_real.py # Real forensic logic │ ├── jocky_agent.py # Persistent agent │ ├── dispatch.py # Dispatch server API │ └── dispatch_cli.py # Analyst CLI ├── worker/ # Cloudflare Worker ├── logs/ # Runtime logs and captures ├── requirements.txt ├── build_jocky.sh ├── JOCKY_MASTER_NOTES_V5.md └── README.md </pre>
 ---
 ## Detection Evasion Mapping
 
