@@ -47,38 +47,38 @@ Modern antivirus and EDR solutions block custom forensic tools through signature
 ---
 ## Architecture
 +-----------------------------------------------------------------+
-| ANALYST WORKSTATION |
-| +--------------+ +--------------+ +------------------+ |
-| | JOCKY CLI | | Dashboard | | Dispatch CLI | |
-| +------+-------+ +------+-------+ +--------+---------+ |
+|                        ANALYST WORKSTATION                       |
+|  +--------------+   +--------------+   +------------------+    |
+|  |  JOCKY CLI   |   |  Dashboard   |   |  Dispatch CLI    |    |
+|  +------+-------+   +------+-------+   +--------+---------+    |
 +---------+------------------+--------------------+--------------+
-| | |
-v v v
+          |                  |                    |
+          v                  v                    v
 +-----------------------------------------------------------------+
-| CLOUDFLARE (Trusted CDN) |
-| Worker: jocky-cdn-front.g-surya-prakash.workers.dev |
-| Domain: c2.jocky.dpdns.org |
-| Dashboard: dashboard.jocky.dpdns.org |
-| Named Tunnel: jocky (2eeac6dd-a1f4-436a-9d4c-8cb875d9ccbf) |
+|                    CLOUDFLARE (Trusted CDN)                      |
+|  Worker: jocky-cdn-front.g-surya-prakash.workers.dev            |
+|  Domain: c2.jocky.dpdns.org                                     |
+|  Dashboard: dashboard.jocky.dpdns.org                           |
+|  Named Tunnel: jocky (2eeac6dd-a1f4-436a-9d4c-8cb875d9ccbf)    |
 +--------------------------------+--------------------------------+
-|
-v
+                                 |
+                                 v
 +-----------------------------------------------------------------+
-| LOCAL FLASK BACKEND (exposed via tunnel) |
-| mock_cdn_server.py -> localhost:8080 |
-| +-- /api/v1/agent/register |
-| +-- /api/v1/agent/poll |
-| +-- /api/v1/agent/report |
-| +-- /api/v1/agent/heartbeat |
-| +-- /dashboard |
+|              LOCAL FLASK BACKEND (exposed via tunnel)            |
+|  mock_cdn_server.py  ->  localhost:8080                          |
+|  +-- /api/v1/agent/register                                      |
+|  +-- /api/v1/agent/poll                                          |
+|  +-- /api/v1/agent/report                                        |
+|  +-- /api/v1/agent/heartbeat                                     |
+|  +-- /dashboard                                                  |
 +--------------------------------+--------------------------------+
-|
-+----------------------+----------------------+
-v v v
-+-------------+ +-------------+ +-------------+
-| Agent A | | Agent B | | Agent C |
-| 10.200.1.10 | | 10.200.1.11 | | 10.200.1.12 |
-+-------------+ +-------------+ +-------------+
+                                 |
+          +----------------------+----------------------+
+          v                      v                      v
+   +-------------+        +-------------+        +-------------+
+   |  Agent A    |        |  Agent B    |        |  Agent C    |
+   | 10.200.1.10 |        | 10.200.1.11 |        | 10.200.1.12 |
+   +-------------+        +-------------+        +-------------+
 
 ---
 ## What's Implemented
@@ -202,28 +202,28 @@ python3 src/inmem_chain.py
 ## Repository Structure
 
 jocky-forensic-framework/
-|-- .github/workflows/ # CI/CD pipeline
-|-- demo/ # Sample programs
-|-- docs/ # Architecture and requirement proof
-|-- llvm/ # JOCKY language frontend
-|-- jocky_scripts/ # Forensic scripts (.jky)
-|-- src/ # Core framework
-| |-- c2_channel.py # Client
-| |-- mock_cdn_server.py # Server
-| |-- crypto.py # ECDH + HKDF + AES-256-GCM
-| |-- protocol.py # Structured command schema
-| |-- dashboard.py # Flask web dashboard
-| |-- memfd_exec.py # File-less execution
-| |-- syscall_direct.py # Direct syscalls
-| |-- inmem_chain.py # End-to-end chain
-| |-- elf_mutate.py # ELF entry point mutation
-| |-- dynsym_inject.py # Import table augmentation
-| |-- forensic_real.py # Real forensic logic
-| |-- jocky_agent.py # Persistent agent
-| |-- dispatch.py # Dispatch server API
-| |-- dispatch_cli.py # Analyst CLI
-|-- worker/ # Cloudflare Worker
-|-- logs/ # Runtime logs
+|-- .github/workflows/          # CI/CD pipeline
+|-- demo/                       # Sample programs
+|-- docs/                       # Architecture and requirement proof
+|-- llvm/                       # JOCKY language frontend
+|-- jocky_scripts/              # Forensic scripts (.jky)
+|-- src/                        # Core framework
+|   |-- c2_channel.py           # Client
+|   |-- mock_cdn_server.py      # Server
+|   |-- crypto.py               # ECDH + HKDF + AES-256-GCM
+|   |-- protocol.py             # Structured command schema
+|   |-- dashboard.py            # Flask web dashboard
+|   |-- memfd_exec.py           # File-less execution
+|   |-- syscall_direct.py       # Direct syscalls
+|   |-- inmem_chain.py          # End-to-end chain
+|   |-- elf_mutate.py           # ELF entry point mutation
+|   |-- dynsym_inject.py        # Import table augmentation
+|   |-- forensic_real.py        # Real forensic logic
+|   |-- jocky_agent.py          # Persistent agent
+|   |-- dispatch.py             # Dispatch server API
+|   |-- dispatch_cli.py         # Analyst CLI
+|-- worker/                     # Cloudflare Worker
+|-- logs/                       # Runtime logs
 |-- requirements.txt
 |-- build_jocky.sh
 |-- JOCKY_MASTER_NOTES_V5.md
