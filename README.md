@@ -298,8 +298,8 @@ jocky-forensic-framework/
 
 ## Team
 
-**Team Name:** Vijaya
-**Institution:** G. PULLA REDDY ENGINEERING COLLEGE
+-**Team Name:** Vijaya
+-**Institution:** G. PULLA REDDY ENGINEERING COLLEGE
 
 ---
 
