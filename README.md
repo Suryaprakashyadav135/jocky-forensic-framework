@@ -401,4 +401,3 @@ jocky-forensic-framework/
 
 ---
 
-**Last Updated:** October 2026
